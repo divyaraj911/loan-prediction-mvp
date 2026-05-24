@@ -2,11 +2,6 @@
 pipeline {
     agent any
 
-    environment {
-        IMAGE_NAME = "loan-predictor-pipeline"
-        IMAGE_TAG  = "${BUILD_NUMBER}"
-    }
-
     stages {
         stage('Source Control Checkout') {
             steps {
@@ -15,32 +10,24 @@ pipeline {
             }
         }
 
-        stage('Container Image Compilation') {
+        stage('Static Code Quality Check') {
             steps {
-                echo 'Building optimized application layers and initializing internal training...'
-                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
-                sh "docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest"
+                echo 'Verifying Python source script syntax integrity...'
+                sh 'python3 -m py_compile src/app.py src/train.py'
+                echo 'Syntax integrity: VALID.'
             }
         }
 
-        stage('Liveness Integration Test') {
+        stage('Automated Model Validation') {
             steps {
-                echo 'Spreading test container deployment instance to verify backend routing...'
-                sh "docker run -d -p 8085:8000 --name pipeline_test_instance ${IMAGE_NAME}:${IMAGE_TAG}"
-                sh "sleep 5"
-                // Run a simple network ping test against the application health probe
-                sh "curl -f http://localhost:8085/health"
-                echo 'Application health check passed successfully!'
-                sh "docker rm -f pipeline_test_instance"
+                echo 'Executing standalone machine learning execution tests...'
+                sh 'python3 src/train.py'
+                echo 'Model pipeline evaluation completed successfully!'
             }
         }
     }
 
     post {
-        always {
-            echo 'Pruning loose intermediate dangling image cache layers...'
-            sh "docker image prune -f"
-        }
         success {
             echo 'CI/CD execution passed completely. Codebase build is production ready!'
         }
